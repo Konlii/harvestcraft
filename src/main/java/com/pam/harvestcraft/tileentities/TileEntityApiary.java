@@ -9,7 +9,6 @@ import net.minecraft.block.Block;
 import net.minecraft.block.BlockCrops;
 import net.minecraft.block.BlockFlower;
 import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.inventory.ISidedInventory;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.network.NetworkManager;
@@ -22,9 +21,10 @@ import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.ItemStackHandler;
 
-public class TileEntityApiary extends TileEntity implements ITickable{
-    
+public class TileEntityApiary extends TileEntity implements ITickable {
+
 	private ItemStackHandler itemstackhandler = new ItemStackHandler(19);
+    private boolean destroyedByCreativePlayer;
 	public int runTime = 0;
 	public int currentBeeRunTime = 0;
 	public int produceTime = 0;
@@ -41,23 +41,37 @@ public class TileEntityApiary extends TileEntity implements ITickable{
 		}
 		return super.getCapability(capability, facing);
 	}
+	
+	@Override
+    public void readFromNBT(NBTTagCompound compound)
+    {
+        super.readFromNBT(compound);
+        this.loadFromNbt(compound);
+    }
 
 	@Override
-	public void readFromNBT(NBTTagCompound compound) {
-		super.readFromNBT(compound);
-		itemstackhandler.deserializeNBT((NBTTagCompound) compound.getTag("Items"));
-		runTime = compound.getShort("RunTime");
-		produceTime = compound.getShort("ProduceTime");
-		currentBeeRunTime = getRunTime(itemstackhandler.getStackInSlot(1));
+    public NBTTagCompound writeToNBT(NBTTagCompound compound)
+    {
+        super.writeToNBT(compound);
+        return this.saveToNbt(compound);
+    }
+
+	public void loadFromNbt(NBTTagCompound compound) {
+		if (compound.getTag("Items") != null)
+		{
+        	itemstackhandler.deserializeNBT((NBTTagCompound) compound.getTag("Items"));
+        	runTime = compound.getShort("RunTime");
+        	produceTime = compound.getShort("ProduceTime");
+        	currentBeeRunTime = getRunTime(itemstackhandler.getStackInSlot(18));
+		}
 	}
 
-	@Override
 	@MethodsReturnNonnullByDefault
-	public NBTTagCompound writeToNBT(NBTTagCompound compound) {
+	public NBTTagCompound saveToNbt(NBTTagCompound compound) {
 		compound.setShort("RunTime", (short) runTime);
 		compound.setShort("ProduceTime", (short) produceTime);
 		compound.setTag("Items", itemstackhandler.serializeNBT());
-		return super.writeToNBT(compound);
+        return compound;
 	}
 
 	@Override
@@ -174,9 +188,8 @@ public class TileEntityApiary extends TileEntity implements ITickable{
 						|| offsetX == radius - 1 && offsetZ == -radius - 1
 						|| offsetX == -radius - 1 && offsetZ == radius - 1)
 					continue;
-				final BlockPos pos = new BlockPos(varX + offsetX, varY, varZ + offsetZ);
-				if (!world.isBlockLoaded(pos)) continue;
-				final Block blockAtCoords = world.getBlockState(pos).getBlock();
+				final Block blockAtCoords =
+						world.getBlockState(new BlockPos(varX + offsetX, varY, varZ + offsetZ)).getBlock();
 				if(blockAtCoords instanceof BlockFlower || blockAtCoords instanceof BlockCrops
 						|| blockAtCoords instanceof BlockBaseGarden) {
 					speed = (int) (speed * 0.95);
@@ -206,9 +219,36 @@ public class TileEntityApiary extends TileEntity implements ITickable{
 		// If we are too far away from this tile entity you cannot use it
 		return !isInvalid() && playerIn.getDistanceSq(pos.add(0.5D, 0.5D, 0.5D)) <= 64D;
 	}
+	
 
+    public boolean isEmpty()
+    {
+        for (int slot=0; slot<19; slot++)
+        {
+            if (!itemstackhandler.getStackInSlot(slot).isEmpty())
+            {
+            	return false;
+            }
+        }
+        return true;
+    }
+
+    public boolean shouldDrop()
+    {
+        return (!this.isDestroyedByCreativePlayer() && !this.isEmpty());
+    }
+	
+    public boolean isDestroyedByCreativePlayer()
+    {
+        return this.destroyedByCreativePlayer;
+    }
+
+    public void setDestroyedByCreativePlayer(boolean playerIn)
+    {
+        this.destroyedByCreativePlayer = playerIn;
+    }
+    
 	public String getGuiID() {
 		return "harvestcraft:apiary";
 	}
-
-	}
+}
